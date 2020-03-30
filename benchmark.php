@@ -114,7 +114,7 @@ function benchmark_array ($name, $count, $consume, $benches)
             . "\n";
 }
 
-function benchmark_linq_groups ($name, $count, $consume, $opsPhp, $opsYaLinqo, $opsGinq, $opsPinq, $opsPipeline = null)
+function benchmark_linq_groups ($name, $count, $consume, $opsPhp, $opsPipeline)
 {
     $benches = E::from(array_map(function ($callback) {
         if (is_null($callback)) {
@@ -126,9 +126,6 @@ function benchmark_linq_groups ($name, $count, $consume, $opsPhp, $opsYaLinqo, $
         return $callback;
     }, [
         "PHP      " => $opsPhp,
-        "YaLinqo  " => $opsYaLinqo,
-        "Ginq     " => $opsGinq,
-        "Pinq     " => $opsPinq,
         "Pipeline " => $opsPipeline,
     ]))->selectMany(
         '$ops ==> $ops',
@@ -177,37 +174,6 @@ benchmark_linq_groups("Iterating over $ITER_MAX ints", 100, null,
     [
         function () use ($ITER_MAX) {
             $j = null;
-            foreach (E::range(0, $ITER_MAX) as $i)
-                $j = $i;
-            return $j;
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            $j = null;
-            foreach (G::range(0, $ITER_MAX - 1) as $i)
-                $j = $i;
-            return $j;
-        },
-        "generator" => function () use ($ITER_MAX) {
-            $j = null;
-            foreach (xrange(0, $ITER_MAX - 1) as $i) {
-                $j = $i;
-            }
-            return $j;
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            $j = null;
-            foreach (P::from(range(0, $ITER_MAX - 1)) as $i)
-                $j = $i;
-            return $j;
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            $j = null;
             foreach (new S(new \ArrayIterator(range(0, $ITER_MAX - 1))) as $i)
                 $j = $i;
             return $j;
@@ -239,26 +205,11 @@ benchmark_linq_groups("Generating array of $ITER_MAX integers", 100, 'consume',
             },
     ],
     [
-        function () use ($ITER_MAX) {
-            return E::range(0, $ITER_MAX)->toArray();
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            return G::range(0, $ITER_MAX - 1)->toArray();
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            return P::from(range(0, $ITER_MAX - 1))->asArray();
-        },
-    ],
-    [
         'range' => function () use ($ITER_MAX) {
-            return iterator_to_array(new S(new \ArrayIterator(range(0, $ITER_MAX - 1))));
+            return new S(new \ArrayIterator(range(0, $ITER_MAX - 1)));
         },
         'xrange' => function () use ($ITER_MAX) {
-            return iterator_to_array(new S(xrange(0, $ITER_MAX - 1)));
+            return new S(xrange(0, $ITER_MAX - 1));
         },
     ]);
 
@@ -275,31 +226,7 @@ benchmark_linq_groups("Generating lookup of $ITER_MAX floats, calculate sum", 10
             return $sum;
         },
     ],
-    [
-        function () use ($ITER_MAX) {
-            $dic = E::range(0, $ITER_MAX)->toLookup(
-                function ($v) { return (string)tan($v % 100); },
-                function ($v) { return $v % 2 ? sin($v) : cos($v); });
-            return E::from($dic)->selectMany(F::$value)->sum();
-        },
-        "string lambda" => function () use ($ITER_MAX) {
-            $dic = E::range(0, $ITER_MAX)->toLookup('(string)tan($v % 100)', '$v % 2 ? sin($v) : cos($v)');
-            return E::from($dic)->selectMany('$v')->sum();
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            $dic = G::range(0, $ITER_MAX - 1)->toLookup(
-                function ($v) { return (string)tan($v % 100); },
-                function ($v) { return $v % 2 ? sin($v) : cos($v); });
-            return G::from($dic)->selectMany(F::$value, F::$key)->sum();
-        },
-    ],
-    [
-        function () use ($ITER_MAX) {
-            not_implemented();
-        },
-    ],
+
     [
         function () use ($ITER_MAX) {
             $s = new S(new \ArrayIterator(range(0, $ITER_MAX - 1)));
@@ -336,29 +263,6 @@ benchmark_linq_groups("Counting values in arrays", 100, null,
                     function ($order) { return count($order['items']) > 5; }
                 )
             );
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->count(function ($order) { return count($order['items']) > 5; });
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->count('$o ==> count($o["items"]) > 5');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->count(function ($order) { return count($order['items']) > 5; });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->orders)
-                ->where(function ($order) { return count($order['items']) > 5; })
-                ->count();
         },
     ],
     [
@@ -405,35 +309,6 @@ benchmark_linq_groups("Counting values in arrays deep", 100, null,
     ],
     [
         function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->count(function ($order) {
-                    return E::from($order['items'])
-                        ->count(function ($item) { return $item['quantity'] > 5; }) > 2;
-                });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->count(function ($order) {
-                    return G::from($order['items'])
-                        ->count(function ($item) { return $item['quantity'] > 5; }) > 2;
-                });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->orders)
-                ->where(function ($order) {
-                    return P::from($order['items'])
-                        ->where(function ($item) { return $item['quantity'] > 5; })
-                        ->count() > 2;
-                })
-                ->count();
-        },
-    ],
-    [
-        function () use ($DATA) {
             $s = new S(new \ArrayIterator($DATA->orders));
 
             $s->map(function ($order) {
@@ -472,28 +347,6 @@ benchmark_linq_groups("Filtering values in arrays", 100, 'consume',
                 $DATA->orders,
                 function ($order) { return count($order['items']) > 5; }
             );
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->where(function ($order) { return count($order['items']) > 5; });
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->where('$order ==> count($order["items"]) > 5');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->where(function ($order) { return count($order['items']) > 5; });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->orders)
-                ->where(function ($order) { return count($order['items']) > 5; });
         },
     ],
     [
@@ -549,64 +402,6 @@ benchmark_linq_groups("Filtering values in arrays deep", 100,
     ],
     [
         function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->select(function ($order) {
-                    return [
-                        'id' => $order['id'],
-                        'items' => E::from($order['items'])
-                            ->where(function ($item) { return $item['quantity'] > 5; })
-                            ->toArray()
-                    ];
-                })
-                ->where(function ($order) {
-                    return count($order['items']) > 0;
-                });
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->select(function ($order) {
-                    return [
-                        'id' => $order['id'],
-                        'items' => E::from($order['items'])->where('$v["quantity"] > 5')->toArray()
-                    ];
-                })
-                ->where('count($v["items"]) > 0');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->select(function ($order) {
-                    return [
-                        'id' => $order['id'],
-                        'items' => G::from($order['items'])
-                            ->where(function ($item) { return $item['quantity'] > 5; })
-                            ->toArray()
-                    ];
-                })
-                ->where(function ($order) {
-                    return count($order['items']) > 0;
-                });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->orders)
-                ->select(function ($order) {
-                    return [
-                        'id' => $order['id'],
-                        'items' => P::from($order['items'])
-                            ->where(function ($item) { return $item['quantity'] > 5; })
-                            ->asArray()
-                    ];
-                })
-                ->where(function ($order) {
-                    return count($order['items']) > 0;
-                });
-        },
-    ],
-    [
-        function () use ($DATA) {
             $s = new S(new \ArrayIterator($DATA->orders));
 
             $s->map(function ($order) {
@@ -633,119 +428,6 @@ benchmark_linq_groups("Filtering values in arrays deep", 100,
         },
     ]);
 
-benchmark_linq_groups("Sorting arrays of strings", 100, 'consume',
-    [
-        function () use ($DATA) {
-            $sortedStrings = $DATA->strings;
-            arsort($sortedStrings, SORT_NATURAL | SORT_FLAG_CASE);
-            return $sortedStrings;
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->strings)->orderByDescending(null, 'strnatcasecmp');
-        },
-        "sort flags" => function () use ($DATA) {
-            return E::from($DATA->strings)->orderByDir(SORT_DESC, null, SORT_NATURAL | SORT_FLAG_CASE);
-        },
-        "callback" => function () use ($DATA) {
-            return E::from($DATA->strings)->orderByDescending(
-                function ($s) { return $s; },
-                function ($a, $b) { return strnatcasecmp($a, $b); }
-            );
-        },
-    ],
-    [
-        function () use ($DATA) {
-            //return G::from($DATA->strings)->orderByDesc('strnatcasecmp');
-            return new \Ginq\OrderingGinq(
-                new \ArrayIterator($DATA->strings),
-                new \Ginq\Comparer\DelegateComparer(function ($a, $b) {
-                    return -strnatcasecmp($a, $b);
-                })
-            );
-        },
-    ],
-    [
-        function () use ($DATA) {
-            //return P::from($DATA->strings)->orderByDescending(function ($v) { return $v; });
-            not_implemented();
-        },
-    ]);
-
-benchmark_linq_groups("Sorting arrays of objects", 100, 'consume',
-    [
-        "multisort" => function () use ($DATA) {
-            $orderedUsers = $DATA->users;
-            $ratings = [ ];
-            foreach ($orderedUsers as $k => $user)
-                $ratings[$k] = $user['rating'];
-            $names = [ ];
-            foreach ($orderedUsers as $k => $user)
-                $names[$k] = $user['name'];
-            $ids = [ ];
-            foreach ($orderedUsers as $k => $user)
-                $ids[$k] = $user['id'];
-            array_multisort(
-                $ratings, SORT_DESC, SORT_NUMERIC,
-                $names, SORT_ASC, SORT_STRING,
-                $ids, SORT_ASC, SORT_NUMERIC,
-                $orderedUsers);
-            return $orderedUsers;
-        },
-        "usort" => function () use ($DATA) {
-            $orderedUsers = $DATA->users;
-            usort(
-                $orderedUsers,
-                function ($a, $b) {
-                    $diff = $a['rating'] - $b['rating'];
-                    if ($diff !== 0)
-                        return -$diff;
-                    $diff = strcmp($a['name'], $b['name']);
-                    if ($diff !== 0)
-                        return $diff;
-                    $diff = $a['id'] - $b['id'];
-                    return $diff;
-                });
-            return $orderedUsers;
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->users)
-                ->orderByDescending(function ($u) { return $u['rating']; })
-                ->thenBy(function ($u) { return $u['name']; })
-                ->thenBy(function ($u) { return $u['id']; });
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->users)->orderByDescending('$v["rating"]')->thenBy('$v["name"]')->thenBy('$v["id"]');
-        },
-        "sort flags" => function () use ($DATA) {
-            return E::from($DATA->users)
-                ->orderByDir(SORT_DESC, '$v["rating"]', SORT_NUMERIC)
-                ->thenByDir(SORT_ASC, '$v["name"]', SORT_STRING)
-                ->thenByDir(SORT_ASC, '$v["id"]', SORT_NUMERIC);
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->users)
-                ->orderByDesc(function ($u) { return $u['rating']; })
-                ->thenBy(function ($u) { return $u['name']; })
-                ->thenBy(function ($u) { return $u['id']; });
-        },
-        "property path" => function () use ($DATA) {
-            return G::from($DATA->users)->orderByDesc('[rating]')->thenBy('[name]')->thenBy('[id]');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->users)
-                ->orderByDescending(function ($u) { return $u['rating']; })
-                ->thenByAscending(function ($u) { return $u['name']; })
-                ->thenByAscending(function ($u) { return $u['id']; });
-        },
-    ]);
 
 benchmark_linq_groups("Joining arrays", 100, 'consume',
     [
@@ -766,70 +448,6 @@ benchmark_linq_groups("Joining arrays", 100, 'consume',
                 }
             }
             return $pairs;
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->join($DATA->users,
-                    function ($o) { return $o['customerId']; },
-                    function ($u) { return $u['id']; },
-                    function ($o, $u) {
-                        return [
-                            'order' => $o,
-                            'user' => $u,
-                        ];
-                    });
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->orders)
-                ->join($DATA->users,
-                    '$o ==> $o["customerId"]', '$u ==> $u["id"]',
-                    '($o, $u) ==> [
-                        "order" => $o,
-                        "user" => $u,
-                    ]');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->join($DATA->users,
-                    function ($o) { return $o['customerId']; },
-                    function ($u) { return $u['id']; },
-                    function ($o, $u) {
-                        return [
-                            'order' => $o,
-                            'user' => $u,
-                        ];
-                    });
-        },
-        "property path" => function () use ($DATA) {
-            return G::from($DATA->orders)
-                ->join($DATA->users,
-                    '[customerId]', '[id]',
-                    function ($o, $u) {
-                        return [
-                            'order' => $o,
-                            'user' => $u,
-                        ];
-                    });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->orders)
-                ->join($DATA->users)
-                ->onEquality(
-                    function ($o) { return $o['customerId']; },
-                    function ($u) { return $u['id']; }
-                )
-                ->to(function ($o, $u) {
-                    return [
-                        'order' => $o,
-                        'user' => $u,
-                    ];
-                });
         },
     ],
     [
@@ -892,47 +510,6 @@ benchmark_linq_groups("Aggregating arrays", 100, null,
     ],
     [
         function () use ($DATA) {
-            $sum = E::from($DATA->products)->sum(function ($p) { return $p['quantity']; });
-            $avg = E::from($DATA->products)->average(function ($p) { return $p['quantity']; });
-            $min = E::from($DATA->products)->min(function ($p) { return $p['quantity']; });
-            $max = E::from($DATA->products)->max(function ($p) { return $p['quantity']; });
-            return "$sum-$avg-$min-$max";
-        },
-        "string lambda" => function () use ($DATA) {
-            $sum = E::from($DATA->products)->sum('$v["quantity"]');
-            $avg = E::from($DATA->products)->average('$v["quantity"]');
-            $min = E::from($DATA->products)->min('$v["quantity"]');
-            $max = E::from($DATA->products)->max('$v["quantity"]');
-            return "$sum-$avg-$min-$max";
-        },
-    ],
-    [
-        function () use ($DATA) {
-            $sum = G::from($DATA->products)->sum(function ($p) { return $p['quantity']; });
-            $avg = G::from($DATA->products)->average(function ($p) { return $p['quantity']; });
-            $min = G::from($DATA->products)->min(function ($p) { return $p['quantity']; });
-            $max = G::from($DATA->products)->max(function ($p) { return $p['quantity']; });
-            return "$sum-$avg-$min-$max";
-        },
-        "property path" => function () use ($DATA) {
-            $sum = G::from($DATA->products)->sum('[quantity]');
-            $avg = G::from($DATA->products)->average('[quantity]');
-            $min = G::from($DATA->products)->min('[quantity]');
-            $max = G::from($DATA->products)->max('[quantity]');
-            return "$sum-$avg-$min-$max";
-        },
-    ],
-    [
-        function () use ($DATA) {
-            $sum = P::from($DATA->products)->sum(function ($p) { return $p['quantity']; });
-            $avg = P::from($DATA->products)->average(function ($p) { return $p['quantity']; });
-            $min = P::from($DATA->products)->minimum(function ($p) { return $p['quantity']; });
-            $max = P::from($DATA->products)->maximum(function ($p) { return $p['quantity']; });
-            return "$sum-$avg-$min-$max";
-        },
-    ],
-    [
-        function () use ($DATA) {
             $qtys = iterator_to_array((new S(new \ArrayIterator($DATA->products)))->map(function ($p) {
                 return $p['quantity'];
             }));
@@ -957,26 +534,7 @@ benchmark_linq_groups("Aggregating arrays custom", 100, null,
             return array_reduce($DATA->products, function ($a, $p) { return $a * $p['quantity']; }, 1);
         },
     ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->products)->aggregate(function ($a, $p) { return $a * $p['quantity']; }, 1);
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->products)->aggregate('$a * $v["quantity"]', 1);
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->products)->aggregate(1, function ($a, $p) { return $a * $p['quantity']; });
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->products)
-                ->select(function ($p) { return $p['quantity']; })
-                ->aggregate(function ($a, $q) { return $a * $q; });
-        },
-    ],
+
     [
         function () use ($DATA) {
             $s = new S(new \ArrayIterator($DATA->products));
@@ -986,155 +544,5 @@ benchmark_linq_groups("Aggregating arrays custom", 100, null,
         },
     ]);
 
-benchmark_linq_groups("Process data from ReadMe example", 5,
-    function ($e) { consume($e, [ 'products' => null ]); },
-    [
-        "multisort" => function () use ($DATA) {
-            $productsSorted = [ ];
-            foreach ($DATA->products as $product) {
-                if ($product['quantity'] > 0) {
-                    if (empty($productsSorted[$product['catId']]))
-                        $productsSorted[$product['catId']] = [ ];
-                    $productsSorted[$product['catId']][] = $product;
-                }
-            }
-            foreach ($productsSorted as $catId => $products) {
-                $quantities = [ ];
-                foreach ($productsSorted[$catId] as $k => $product)
-                    $quantities[$k] = $product['quantity'];
-                $names = [ ];
-                foreach ($productsSorted[$catId] as $k => $product)
-                    $names[$k] = $product['name'];
-                array_multisort(
-                    $quantities, SORT_DESC, SORT_NUMERIC,
-                    $names, SORT_ASC, SORT_STRING,
-                    $productsSorted[$catId]);
-            }
-            $categoriesSorted = $DATA->categories;
-            $names = [ ];
-            foreach ($categoriesSorted as $k => $category)
-                $names[$k] = $category['name'];
-            array_multisort(
-                $names, SORT_ASC, SORT_STRING,
-                $categoriesSorted);
-            $result = [ ];
-            foreach ($categoriesSorted as $category) {
-                $categoryId = $category['id'];
-                $result[$category['id']] = [
-                    'name' => $category['name'],
-                    'products' => isset($productsSorted[$categoryId]) ? $productsSorted[$categoryId] : [ ],
-                ];
-            }
-            return $result;
-        },
-        "usort" => function () use ($DATA) {
-            $productsSorted = [ ];
-            foreach ($DATA->products as $product) {
-                if ($product['quantity'] > 0) {
-                    if (empty($productsSorted[$product['catId']]))
-                        $productsSorted[$product['catId']] = [ ];
-                    $productsSorted[$product['catId']][] = $product;
-                }
-            }
-            foreach ($productsSorted as $catId => $products) {
-                usort($productsSorted[$catId], function ($a, $b) {
-                    $diff = $a['quantity'] - $b['quantity'];
-                    if ($diff != 0)
-                        return -$diff;
-                    $diff = strcmp($a['name'], $b['name']);
-                    return $diff;
-                });
-            }
-            $result = [ ];
-            $categoriesSorted = $DATA->categories;
-            usort($categoriesSorted, function ($a, $b) {
-                return strcmp($a['name'], $b['name']);
-            });
-            foreach ($categoriesSorted as $category) {
-                $categoryId = $category['id'];
-                $result[$category['id']] = [
-                    'name' => $category['name'],
-                    'products' => isset($productsSorted[$categoryId]) ? $productsSorted[$categoryId] : [ ],
-                ];
-            }
-            return $result;
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return E::from($DATA->categories)
-                ->orderBy(function ($cat) { return $cat['name']; })
-                ->groupJoin(
-                    from($DATA->products)
-                        ->where(function ($prod) { return $prod['quantity'] > 0; })
-                        ->orderByDescending(function ($prod) { return $prod['quantity']; })
-                        ->thenBy(function ($prod) { return $prod['name']; }),
-                    function ($cat) { return $cat['id']; },
-                    function ($prod) { return $prod['catId']; },
-                    function ($cat, $prods) {
-                        return array(
-                            'name' => $cat['name'],
-                            'products' => $prods
-                        );
-                    }
-                );
-        },
-        "string lambda" => function () use ($DATA) {
-            return E::from($DATA->categories)
-                ->orderBy('$cat ==> $cat["name"]')
-                ->groupJoin(
-                    from($DATA->products)
-                        ->where('$prod ==> $prod["quantity"] > 0')
-                        ->orderByDescending('$prod ==> $prod["quantity"]')
-                        ->thenBy('$prod ==> $prod["name"]'),
-                    '$cat ==> $cat["id"]', '$prod ==> $prod["catId"]',
-                    '($cat, $prods) ==> [
-                            "name" => $cat["name"],
-                            "products" => $prods
-                        ]');
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return G::from($DATA->categories)
-                ->orderBy(function ($cat) { return $cat['name']; })
-                ->groupJoin(
-                    G::from($DATA->products)
-                        ->where(function ($prod) { return $prod['quantity'] > 0; })
-                        ->orderByDesc(function ($prod) { return $prod['quantity']; })
-                        ->thenBy(function ($prod) { return $prod['name']; }),
-                    function ($cat) { return $cat['id']; },
-                    function ($prod) { return $prod['catId']; },
-                    function ($cat, $prods) {
-                        return array(
-                            'name' => $cat['name'],
-                            'products' => $prods
-                        );
-                    }
-                );
-        },
-    ],
-    [
-        function () use ($DATA) {
-            return P::from($DATA->categories)
-                ->orderByAscending(function ($cat) { return $cat['name']; })
-                ->groupJoin(
-                    P::from($DATA->products)
-                        ->where(function ($prod) { return $prod['quantity'] > 0; })
-                        ->orderByDescending(function ($prod) { return $prod['quantity']; })
-                        ->thenByAscending(function ($prod) { return $prod['name']; })
-                )
-                ->onEquality(
-                    function ($cat) { return $cat['id']; },
-                    function ($prod) { return $prod['catId']; }
-                )
-                ->to(function ($cat, $prods) {
-                    return array(
-                        'name' => $cat['name'],
-                        'products' => $prods
-                    );
-                });
-        },
-    ]);
 
 echo "\nDone!\n";
