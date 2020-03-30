@@ -7,7 +7,7 @@ use YaLinqo\Enumerable as E;
 use Ginq\Ginq as G;
 use Pinq\Traversable as P;
 use YaLinqo\Functions as F;
-use Pipeline\Simple as S;
+use Pipeline\Standard as S;
 
 function is_cli ()
 {
@@ -82,7 +82,13 @@ function benchmark_array ($name, $count, $consume, $benches)
         if ($results[$i]['return'] === null)
             continue;
         $returnOther = $results[$i]['return'];
-        if ($return !== $returnOther) {
+        $match = $return === $returnOther;
+
+        if (!$match && is_numeric($return) && is_numeric($returnOther)) {
+            $match = abs($returnOther - $return) < .0000000001;
+        }
+
+        if (!$match) {
             echo "\nERROR: Results from tests '{$results[0]['name']}' and '{$results[$i]['name']}' do not match.\n";
             echo "0: {$return}\n{$i}: {$returnOther}\n";
             file_put_contents('tmp/result-0.txt', $return);
