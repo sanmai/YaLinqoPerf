@@ -150,10 +150,10 @@ function benchmark_linq_groups($name, $count, $consume, $opsPhp, $opsPipeline): 
     foreach ([
         'PHP      ' => $opsPhp,
         'Pipeline ' => $opsPipeline,
-    ] as $name => $ops) {
+    ] as $xname => $ops) {
         if (!\is_array($ops)) {
             $benches[] = [
-                'name' => $name,
+                'name' => $xname,
                 'op' => $ops,
             ];
 
@@ -161,7 +161,7 @@ function benchmark_linq_groups($name, $count, $consume, $opsPhp, $opsPipeline): 
         }
 
         foreach ($ops as $detail => $op) {
-            $opName = $name;
+            $opName = $xname;
 
             if (\is_string($detail)) {
                 $opName = "{$opName} [{$detail}]";
