@@ -26,6 +26,7 @@ require_once 'data.php';
 
 use Pipeline\Standard as S;
 use function Pipeline\take;
+use function Pipeline\fromArray;
 
 function xrange($start, $limit, $step = 1)
 {
@@ -223,7 +224,7 @@ benchmark_linq_groups(
     [
         function () use ($ITER_MAX) {
             $j = null;
-            foreach (new S(new \ArrayIterator(\range(0, $ITER_MAX - 1))) as $i) {
+            foreach (fromArray((\range(0, $ITER_MAX - 1))) as $i) {
                 $j = $i;
             }
 
@@ -231,7 +232,7 @@ benchmark_linq_groups(
         },
         'generator' => function () use ($ITER_MAX) {
             $j = null;
-            foreach (new S(xrange(0, $ITER_MAX - 1)) as $i) {
+            foreach (take(xrange(0, $ITER_MAX - 1)) as $i) {
                 $j = $i;
             }
 
@@ -262,10 +263,10 @@ benchmark_linq_groups(
     ],
     [
         'range' => function () use ($ITER_MAX) {
-            return new S(new \ArrayIterator(\range(0, $ITER_MAX - 1)));
+            return fromArray((\range(0, $ITER_MAX - 1)));
         },
         'xrange' => function () use ($ITER_MAX) {
-            return new S(xrange(0, $ITER_MAX - 1));
+            return take(xrange(0, $ITER_MAX - 1));
         },
     ]
 );
@@ -292,7 +293,7 @@ benchmark_linq_groups(
     ],
     [
         function () use ($ITER_MAX) {
-            $s = new S(new \ArrayIterator(\range(0, $ITER_MAX - 1)));
+            $s = fromArray((\range(0, $ITER_MAX - 1)));
 
             $s->map(function ($i) {
                 return [
@@ -336,7 +337,7 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->orders));
+            $s = fromArray(($DATA->orders));
 
             return $s->map(function ($order) {
                 return \count($order['items']) > 5;
@@ -386,10 +387,10 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->orders));
+            $s = fromArray(($DATA->orders));
 
             $s->map(function ($order) {
-                $s = new S(new \ArrayIterator($order['items']));
+                $s = fromArray(($order['items']));
 
                 return $s->map(function ($item) {
                     return $item['quantity'] > 5;
@@ -436,7 +437,7 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->orders));
+            $s = fromArray(($DATA->orders));
             $s->filter(function ($order) {
                 return \count($order['items']) > 5;
             });
@@ -493,10 +494,10 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->orders));
+            $s = fromArray(($DATA->orders));
 
             $s->map(function ($order) {
-                $s = new S(new \ArrayIterator($order['items']));
+                $s = fromArray(($order['items']));
                 $order['items'] = $s->filter(function ($item) {
                     return $item['quantity'] > 5;
                 });
@@ -548,12 +549,12 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->orders));
+            $s = fromArray(($DATA->orders));
             $ordersByCustomerId = $s->reduce(function ($ordersByCustomerId, $order): void {
                 $ordersByCustomerId[$order['customerId']][] = &$order;
             }, []);
 
-            $s = new S(new \ArrayIterator($DATA->users));
+            $s = fromArray(($DATA->users));
             $s->map(function ($user) use ($ordersByCustomerId) {
                 if (isset($ordersByCustomerId[$user['id']])) {
                     foreach ($ordersByCustomerId[$user['id']] as $order) {
@@ -616,7 +617,7 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $qtys = \iterator_to_array((new S(new \ArrayIterator($DATA->products)))->map(function ($p) {
+            $qtys = \iterator_to_array((fromArray(($DATA->products)))->map(function ($p) {
                 return $p['quantity'];
             }));
 
@@ -649,7 +650,7 @@ benchmark_linq_groups(
     ],
     [
         function () use ($DATA) {
-            $s = new S(new \ArrayIterator($DATA->products));
+            $s = fromArray(($DATA->products));
 
             return $s->reduce(function ($carry, $p) {
                 return $carry * $p['quantity'];
