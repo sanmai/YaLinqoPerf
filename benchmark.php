@@ -27,12 +27,6 @@ require_once 'data.php';
 use Pipeline\Standard as S;
 use function Pipeline\take;
 
-function is_cli()
-{
-    // PROMPT var is set by cmd, but not by PHPStorm.
-    return \PHP_SAPI === 'cli' && isset($_SERVER['PROMPT']);
-}
-
 function xrange($start, $limit, $step = 1)
 {
     \assert($start < $limit);
@@ -66,9 +60,13 @@ function benchmark_operation($count, $consume, $operation)
             }
         }
         $return = $operation();
+
         if ($return instanceof \Traversable || !\is_scalar($return)) {
             $return = toListDeepProc($return);
         }
+
+        $time = \microtime(true) - $time;
+
         $result = true;
     } catch (Exception $e) {
         $result = false;
@@ -79,7 +77,7 @@ function benchmark_operation($count, $consume, $operation)
         'result' => $result,
         'return' => $return,
         'message' => $message,
-        'time' => (\microtime(true) - $time) / $count,
+        'time' => $time / $count,
     ];
 }
 
