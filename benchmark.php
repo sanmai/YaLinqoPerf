@@ -25,7 +25,7 @@ require_once 'vendor/autoload.php';
 require_once 'data.php';
 
 use Pipeline\Standard as S;
-use YaLinqo\Enumerable as E;
+use function Pipeline\take;
 
 function is_cli()
 {
@@ -42,6 +42,16 @@ function xrange($start, $limit, $step = 1)
     }
 }
 
+function toListDeepProc($enum)
+{
+    $array = [];
+    foreach ($enum as $v) {
+        $array[] = $v instanceof \Traversable || \is_array($v) ? toListDeepProc($v) : $v;
+    }
+
+    return $array;
+}
+
 function benchmark_operation($count, $consume, $operation)
 {
     $time = \microtime(true);
@@ -56,8 +66,8 @@ function benchmark_operation($count, $consume, $operation)
             }
         }
         $return = $operation();
-        if (!\is_scalar($return)) {
-            $return = E::from($return)->toListDeep();
+        if ($return instanceof \Traversable || !\is_scalar($return)) {
+            $return = toListDeepProc($return);
         }
         $result = true;
     } catch (Exception $e) {
@@ -75,31 +85,21 @@ function benchmark_operation($count, $consume, $operation)
 
 function benchmark_array($name, $count, $consume, $benches): void
 {
-    if (isset($_SERVER['ONLY']) && false === \strpos($name, $_SERVER['ONLY'])) {
-        // not testing because not requested
-        return;
-    }
-
-    $benches = E::from($benches)->select('[ "name" => $k, "op" => $v ]')->toArray();
-
     // Run benchmarks
     echo "\n{$name} ";
     foreach ($benches as $k => $bench) {
         $benches[$k] = \array_merge($bench, benchmark_operation($count, $consume, $bench['op']));
         echo '.';
     }
-    // Remove progress dots with backspaces
-    if (is_cli()) {
-        echo \str_repeat(\chr(8), \count($benches) + 1).\str_repeat(' ', \count($benches) + 1);
-    }
 
     // Validate results
-    $results = E::from($benches)->select(function ($b) {
+    $results = take($benches)->map(function ($b) {
         return [
             'name' => $b['name'],
             'return' => $b['result'] ? \json_encode($b['return'], JSON_PRETTY_PRINT) : null,
         ];
-    })->toList();
+    })->toArray();
+
     $return = $results[0]['return'];
     for ($i = 1; $i < \count($results); ++$i) {
         if (null === $results[$i]['return']) {
@@ -123,10 +123,13 @@ function benchmark_array($name, $count, $consume, $benches): void
 
     // Draw table
     echo "\n".\str_repeat('-', \strlen($name))."\n";
-    $min = E::from($benches)->where('$v["result"]')->min('$v["time"]');
-    if (0 === $min) {
-        $min = 0.0001;
-    }
+
+    $min = \max(0.0000001, \min(take($benches)->filter(function ($v) {
+        return $v['result'];
+    })->map(function ($v) {
+        return $v['time'];
+    })->toArray()));
+
     foreach ($benches as $bench) {
         echo '  '.\str_pad($bench['name'], 28).
             ($bench['result']
@@ -142,22 +145,34 @@ function benchmark_array($name, $count, $consume, $benches): void
 
 function benchmark_linq_groups($name, $count, $consume, $opsPhp, $opsPipeline): void
 {
-    $benches = E::from(\array_map(function ($callback) {
-        if (null === $callback) {
-            return [function (): void {
-                not_implemented();
-            }];
-        }
+    $benches = [];
 
-        return $callback;
-    }, [
+    foreach ([
         'PHP      ' => $opsPhp,
         'Pipeline ' => $opsPipeline,
-    ]))->selectMany(
-        '$ops ==> $ops',
-        '$op ==> $op',
-        '($op, $name, $detail) ==> is_numeric($detail) ? $name : "$name [$detail]"'
-    );
+    ] as $name => $ops) {
+        if (!\is_array($ops)) {
+            $benches[] = [
+                'name' => $name,
+                'op' => $ops,
+            ];
+
+            continue;
+        }
+
+        foreach ($ops as $detail => $op) {
+            $opName = $name;
+
+            if (\is_string($detail)) {
+                $opName = "{$opName} [{$detail}]";
+            }
+            $benches[] = [
+                'name' => $opName,
+                'op' => $op,
+            ];
+        }
+    }
+
     benchmark_array($name, $count, $consume, $benches);
 }
 
